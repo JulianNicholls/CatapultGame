@@ -13,6 +13,9 @@
     var bgBitmap, p1Bitmap, p2Bitmap, ammoBitmap;
     var preload;
 
+    var MAX_CLOUDS = 4;
+    var cloudImages = [], cloudBitmaps = [], cloudSpeeds = [];
+
     // Calculate display scale factor, original assets assume 800x480
 
     var SCALE_X = window.innerWidth / 800;
@@ -35,6 +38,14 @@
     var isAiming = false;
     var aimPower = 1;
     var aimStart, aimVector;
+
+    var FIRE_SOUND_FILE = "/sounds/CatapultFire.wav";
+    var HIT_SOUND_FILE = "/sounds/BoulderHit.wav";
+    var EXPLODE_SOUND_FILE = "/sounds/CatapultExplosion.wav";
+    var LOSE_SOUND_FILE = "/sounds/Lose.wav";
+    var AIM_SOUND_FILE = "/sounds/RopeStretch.wav";
+    var WIN_SOUND_FILE = "/sounds/Win.wav";
+
 
     app.onactivated = function (args) {
         if (args.detail.kind === activation.ActivationKind.launch) {
@@ -75,6 +86,15 @@
             { id: "loseImage", src: "images/Backgrounds/defeat.png" },
             { id: "redFire", src: "images/Catapults/Red/redFire/redCatapult_fire.png" },
             { id: "blueFire", src: "images/Catapults/Blue/blueFire/blueCatapult_fire.png" },
+            { id: "c1Image", src: "images/Backgrounds/cloud1.png" },
+            { id: "c2Image", src: "images/Backgrounds/cloud2.png" },
+
+            { id: "hitSound", src: HIT_SOUND_FILE },
+            { id: "explodeSound", src: EXPLODE_SOUND_FILE },
+            { id: "fireSound", src: FIRE_SOUND_FILE },
+            { id: "loseSound", src: LOSE_SOUND_FILE },
+            { id: "aimSound", src: AIM_SOUND_FILE },
+            { id: "winSound", src: WIN_SOUND_FILE },
         ];
 
         preload.loadManifest(manifest);
@@ -115,6 +135,19 @@
         ammoBitmap.visible = false;
         stage.addChild(ammoBitmap);
 
+        // Clouds
+
+        for (var i = 0; i < MAX_CLOUDS; ++i) {
+            cloudImages[i] = preload.getResult((i % 2) ? "c1Image" : "c2Image");
+            cloudBitmaps[i] = new createjs.Bitmap(cloudImages[i]);
+            cloudBitmaps[i].scaleX = SCALE_X;
+            cloudBitmaps[i].scaleY = SCALE_Y;
+            cloudBitmaps[i].x = MARGIN * 6 * i
+            cloudBitmaps[i].y = MARGIN * i;
+
+            stage.addChild(cloudBitmaps[i]);
+        }
+
         // Player 1 Lives
         p1Lives = new createjs.Text('Lives Left: ' + player1Lives, "20px sans-serif", "red");
         p1Lives.scaleX = SCALE_X;
@@ -147,6 +180,14 @@
     function startGame() {
         createjs.Ticker.setInterval(window.requestAnimationFrame);
         createjs.Ticker.addListener(gameLoop);
+
+        // Set up clouds
+        for (var i = 0; i < MAX_CLOUDS; ++i)
+            cloudSpeeds[i] = Math.random() * 2 + 0.5;
+
+        if( Math.random() > 0.5 )
+            for (var i = 0; i < MAX_CLOUDS; ++i)
+                cloudSpeeds[i] = -cloudSpeeds[i];
     }
 
     function gameLoop() {
@@ -155,6 +196,10 @@
     }
 
     function update() {
+        updateClouds();
+
+        // Deal with shots and firing.
+
         if (isShotFlying) {     // There's a shot in the air
             ammoBitmap.x += shotVelocity.x;
             ammoBitmap.y += shotVelocity.y;
@@ -202,9 +247,25 @@
         }
     }
 
+    function updateClouds() {
+        for (var i = 0; i < MAX_CLOUDS; ++i) {
+            cloudBitmaps[i].x += cloudSpeeds[i];
+
+            if (cloudBitmaps[i].x > canvas.width) {
+                cloudSpeeds[i] = Math.random() * 2 + 0.5;
+                cloudBitmaps[i].x = -cloudBitmaps[i].image.width;
+            }
+            else if (cloudBitmaps[i].x < -cloudBitmaps[i].image.width) {
+                cloudSpeeds[i] = Math.random() * -2 - 0.5;
+                cloudBitmaps[i].x = canvas.width;
+            }
+        }
+    }
+
     function beginAim(e) {      // Triggered by MSPointerDown
         if (playerTurn == 1) {
             if (!isAiming) {
+                playSound(AIM_SOUND_FILE);
                 aimStart = new createjs.Point(e.x, e.y);
                 isAiming = true;
             }
@@ -215,7 +276,7 @@
         if (isAiming) {
             var aimCurrent = new createjs.Point(e.x, e.y);
             aimVector = calculateShot(aimStart, aimCurrent);
-            // TODO - Show text or an arraow
+            // TODO - Show text or an arrow
             Debug.writeln("Aiming... " + aimVector.x + ", " + aimVector.y);
         }
     }
@@ -246,6 +307,7 @@
     }
 
     function fireShot() {
+        playSound(FIRE_SOUND_FILE);
         ammoBitmap.visible = true;
         isShotFlying = true;
     }
@@ -265,6 +327,7 @@
     }
 
     function processHit() {
+        playSound(HIT_SOUND_FILE);
         isShotFlying = false;               // Stop shot
         ammoBitmap.visible = false;         // Hide shot
         playerTurn = playerTurn % 2 + 1;    // Swap player
@@ -281,10 +344,14 @@
 
         var endGameImage;
 
-        if (player1Lives <= 0)
+        if (player1Lives <= 0) {
             endGameImage = preload.getResult("loseImage");
-        else if( player2Lives <= 0)
+            playSound(LOSE_SOUND_FILE);
+        }
+        else if (player2Lives <= 0) {
             endGameImage = preload.getResult("winImage");
+            playSound(WIN_SOUND_FILE);
+        }
 
         var endGameBitmap = new createjs.Bitmap(endGameImage);
 
@@ -299,6 +366,18 @@
 
     function draw() {
         stage.update();     // Ooh, that was difficult!
+    }
+
+    // For simplicity, this uses one audio instance per sound.
+    //  It avoids clipping, but incurs overhead of additional instances.
+    //  A more sophisticated implementation might use a pool.
+    //  See also: http://msdn.microsoft.com/en-us/hh550087.aspx
+
+    function playSound( path ) {
+        var sound = document.createElement("audio");
+
+        sound.src = path;
+        sound.autoplay = true;
     }
 
     app.oncheckpoint = function (args) {
