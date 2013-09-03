@@ -32,6 +32,10 @@
     var MAX_SHOT_POWER = 10;
     var GRAVITY = 0.07;
 
+    var isAiming = false;
+    var aimPower = 1;
+    var aimStart, aimVector;
+
     app.onactivated = function (args) {
         if (args.detail.kind === activation.ActivationKind.launch) {
             if (args.detail.previousExecutionState !== activation.ApplicationExecutionState.terminated) {
@@ -50,6 +54,10 @@
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         context = canvas.getContext("2d");
+
+        canvas.addEventListener("MSPointerUp", endAim, false);
+        canvas.addEventListener("MSPointerMove", adjustAim, false);
+        canvas.addEventListener("MSPointerDown", beginAim, false);
 
         stage = new createjs.Stage(canvas);
 
@@ -73,7 +81,6 @@
     }
 
     function prepareGame() {
-
         // Draw background first
         bgImage = preload.getResult("screenImage"); // Used to need .result
         bgBitmap = new createjs.Bitmap(bgImage);
@@ -174,13 +181,15 @@
             }
         }
         else if (playerTurn == 1) {
-            // For now, player always fires
-            ammoBitmap.x = p1Bitmap.x + p1Bitmap.image.width * SCALE_X / 2;
-            ammoBitmap.y = p1Bitmap.y;
-            shotVelocity = new createjs.Point(
-                Math.random() * 4 * SCALE_X + 3,
-                Math.random() * -3 * SCALE_Y - 1);
-            fireShot();
+            // Does player 1 want to fire?
+
+            if (playerFire) {
+                playerFire = false;
+                ammoBitmap.x = p1Bitmap.x + p1Bitmap.image.width * SCALE_X / 2;
+                ammoBitmap.y = p1Bitmap.y;
+                shotVelocity = aimVector;
+                fireShot();
+            }
         }
         else if (playerTurn == 2) {
             // For now, player always fires
@@ -191,6 +200,49 @@
                 Math.random() * -3 * SCALE_Y - 1);
             fireShot();
         }
+    }
+
+    function beginAim(e) {      // Triggered by MSPointerDown
+        if (playerTurn == 1) {
+            if (!isAiming) {
+                aimStart = new createjs.Point(e.x, e.y);
+                isAiming = true;
+            }
+        }
+    }
+
+    function adjustAim(e) {     // Triggered by MSPointerMove
+        if (isAiming) {
+            var aimCurrent = new createjs.Point(e.x, e.y);
+            aimVector = calculateShot(aimStart, aimCurrent);
+            // TODO - Show text or an arraow
+            Debug.writeln("Aiming... " + aimVector.x + ", " + aimVector.y);
+        }
+    }
+
+    function endAim(e) {
+        if (isAiming) {
+            isAiming = false;
+            var aimCurrent = new createjs.Point(e.x, e.y);
+            aimVector = calculateShot(aimStart, aimCurrent);
+            playerFire = true;
+        }
+    }
+
+    function calculateShot( start, current) {
+        // NOTE: This only works for player 1
+
+        var aim = new createjs.Point((current.x - start.x) / 80, (current.y - start.y) / 80);
+
+        // Constrain x to 0 -> MAX_SHOT_POWER
+        aim.x = Math.min(MAX_SHOT_POWER, aim.x);
+        aim.x = Math.max(0, aim.x);
+
+        // Likewise, contrain y to -MAX_SHOT_POWER -> 0
+        aim.y = Math.max(-MAX_SHOT_POWER, aim.y);
+        aim.y = Math.min(0, aim.y);
+
+        return aim;
     }
 
     function fireShot() {
