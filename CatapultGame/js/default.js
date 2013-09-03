@@ -24,6 +24,14 @@
     var player1Lives = LIVES_PER_PLAYER;
     var player2Lives = LIVES_PER_PLAYER;
 
+    var isShotFlying = false;
+    var playerTurn = 1;
+    var playerFire = false;
+    var shotVelocity;
+
+    var MAX_SHOT_POWER = 10;
+    var GRAVITY = 0.07;
+
     app.onactivated = function (args) {
         if (args.detail.kind === activation.ActivationKind.launch) {
             if (args.detail.previousExecutionState !== activation.ApplicationExecutionState.terminated) {
@@ -125,6 +133,13 @@
         stage.addChild(title);
 
         stage.update();
+
+        startGame();
+    }
+
+    function startGame() {
+        createjs.Ticker.setInterval(window.requestAnimationFrame);
+        createjs.Ticker.addListener(gameLoop);
     }
 
     function gameLoop() {
@@ -133,11 +148,105 @@
     }
 
     function update() {
+        if (isShotFlying) {     // There's a shot in the air
+            ammoBitmap.x += shotVelocity.x;
+            ammoBitmap.y += shotVelocity.y;
+            shotVelocity.y += GRAVITY;      // Apply gravity each time.
 
+            if (ammoBitmap.y + ammoBitmap.image.height >= GROUND_Y ||       // Missed!
+                ammoBitmap.x <= 0 ||
+                ammoBitmap.x + ammoBitmap.image.width >= canvas.width) {
+                isShotFlying = false;
+                ammoBitmap.visible = false;
+                playerTurn = playerTurn % 2 + 1;    // Swap player
+            }
+            else if (playerTurn == 1) {
+                if (checkHit(p2Bitmap)) {    // Hit!
+                    p2Lives.text = "Lives Left: " + --player2Lives;
+                    processHit();
+                }
+            }
+            else if (playerTurn == 2) {
+                if (checkHit(p1Bitmap)) {
+                    p1Lives.text = "Lives Left: " + --player1Lives;
+                    processHit();
+                }
+            }
+        }
+        else if (playerTurn == 1) {
+            // For now, player always fires
+            ammoBitmap.x = p1Bitmap.x + p1Bitmap.image.width * SCALE_X / 2;
+            ammoBitmap.y = p1Bitmap.y;
+            shotVelocity = new createjs.Point(
+                Math.random() * 4 * SCALE_X + 3,
+                Math.random() * -3 * SCALE_Y - 1);
+            fireShot();
+        }
+        else if (playerTurn == 2) {
+            // For now, player always fires
+            ammoBitmap.x = p2Bitmap.x + p2Bitmap.image.width * SCALE_X / 2;
+            ammoBitmap.y = p2Bitmap.y;
+            shotVelocity = new createjs.Point(
+                Math.random() * -4 * SCALE_X - 3,
+                Math.random() * -3 * SCALE_Y - 1);
+            fireShot();
+        }
+    }
+
+    function fireShot() {
+        ammoBitmap.visible = true;
+        isShotFlying = true;
+    }
+
+    function checkHit(target) {
+        // EaselJS hitTest() method doesn't factor in scaling,
+        // so we'll use bounding boxes
+
+        // Centre of Rock
+        var shotX = ammoBitmap.x + ammoBitmap.image.width / 2;
+        var shotY = ammoBitmap.y + ammoBitmap.image.height / 2;
+
+        // Is it inside the bitmap?
+
+        return (shotX >= target.x) && (shotX <= target.x + target.image.width * SCALE_X) &&
+               (shotY >= target.y) && (shotY <= target.y + target.image.height * SCALE_Y);
+    }
+
+    function processHit() {
+        isShotFlying = false;               // Stop shot
+        ammoBitmap.visible = false;         // Hide shot
+        playerTurn = playerTurn % 2 + 1;    // Swap player
+
+        if (player1Lives <= 0 || player2Lives <= 0) {
+            endGame();
+        }
+    }
+
+    function endGame() {
+        createjs.Ticker.setPaused(true);    // Stop updates
+
+        // Show win or lose
+
+        var endGameImage;
+
+        if (player1Lives <= 0)
+            endGameImage = preload.getResult("loseImage");
+        else if( player2Lives <= 0)
+            endGameImage = preload.getResult("winImage");
+
+        var endGameBitmap = new createjs.Bitmap(endGameImage);
+
+        endGameBitmap.x = canvas.width / 2 - endGameImage.width * SCALE_X / 2;
+        endGameBitmap.y = canvas.height / 2 - endGameImage.height * SCALE_Y / 2;
+        endGameBitmap.scaleX = SCALE_X;
+        endGameBitmap.scaleY = SCALE_Y;
+
+        stage.addChild(endGameBitmap);
+        stage.update();
     }
 
     function draw() {
-
+        stage.update();     // Ooh, that was difficult!
     }
 
     app.oncheckpoint = function (args) {
