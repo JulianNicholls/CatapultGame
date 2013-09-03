@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/2010/manifest">
+  <Identity Name="dea08b65-720a-4d26-8491-2e4603a8b4bd" Version="1.0.0.0" Publisher="CN=owner" />
+  <Properties>
+    <DisplayName>CatapultGame</DisplayName>
+    <PublisherDisplayName>owner</PublisherDisplayName>
+    <Logo>images\storelogo.png</Logo>
+  </Properties>
+  <Prerequisites>
+    <OSMinVersion>6.2.1</OSMinVersion>
+    <OSMaxVersionTested>6.2.1</OSMaxVersionTested>
+  </Prerequisites>
+  <Resources>
+    <Resource Language="x-generate" />
+  </Resources>
+  <Applications>
+    <Application Id="App" StartPage="default.html">
+      <VisualElements DisplayName="CatapultGame" Logo="images\Backgrounds\title_screen_150x150.png" SmallLogo="images\Backgrounds\title_screen_30x30.png" Description="CatapultGame" ForegroundText="light" BackgroundColor="#464646">
+        <DefaultTile ShowName="allLogos" WideLogo="images\Backgrounds\title_screen_310x150.png" />
+        <SplashScreen Image="images\Backgrounds\title_screen_620x300.png" BackgroundColor="darkGray" />
+      </VisualElements>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <Capability Name="internetClient" />
+  </Capabilities>
+</Package>
